@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Multi-Agent Swarm
+Bullpen
 
 Usage:
     python main.py              - Start the REPL
@@ -273,7 +273,7 @@ Commands:
 
 
 def repl():
-    print("Multi-Agent Swarm")
+    print("Bullpen")
     print("Type 'help' for commands.\n")
 
     while True:

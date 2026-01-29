@@ -1,4 +1,4 @@
-# Multi-Agent Swarm
+# Bullpen
 
 A minimal multi-agent system with file-based communication.
 
@@ -8,7 +8,7 @@ A minimal multi-agent system with file-based communication.
 python3 main.py
 ```
 
-This starts a REPL where you can create agents, send messages, and run the swarm.
+This starts a REPL where you can create agents, send messages, and run the bullpen.
 
 ## Example Session
 
