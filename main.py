@@ -4,8 +4,14 @@ Bullpen
 
 Usage:
     python main.py              - Start the REPL
-    python main.py add <id> <name> <role>  - Add an agent
-    python main.py rm <id>      - Remove an agent
+    python main.py <command>    - Run a single command
+
+Examples:
+    python main.py add researcher Remy "You find information."
+    python main.py broadcast "What is the weather?"
+    python main.py start
+    python main.py status
+    python main.py logs researcher
 """
 import sys
 import readline
@@ -31,8 +37,9 @@ def cmd_rm(args):
     if not args:
         print("Usage: rm <id>")
         return
-    if delete_agent(args[0]):
-        print(f"Removed: {args[0]}")
+    agent = get_agent(args[0])
+    if agent and delete_agent(agent.id):
+        print(f"Removed: {agent.name} ({agent.id})")
     else:
         print(f"Not found: {args[0]}")
 
@@ -76,7 +83,7 @@ def cmd_send(args):
     if not agent:
         print(f"Not found: {args[0]}")
         return
-    send_to_agent(args[0], " ".join(args[1:]), sender="user")
+    send_to_agent(agent.id, " ".join(args[1:]), sender="user")
     print(f"Sent to {agent.name}")
 
 
@@ -118,7 +125,7 @@ def cmd_inbox(args):
     if not agent:
         print(f"Not found: {args[0]}")
         return
-    messages = read_inbox(args[0], clear=False)
+    messages = read_inbox(agent.id, clear=False)
     if not messages:
         print(f"\n{agent.name}'s inbox is empty.\n")
         return
@@ -137,7 +144,7 @@ def cmd_outbox(args):
     if not agent:
         print(f"Not found: {args[0]}")
         return
-    messages = read_outbox(args[0])
+    messages = read_outbox(agent.id)
     if not messages:
         print(f"\n{agent.name}'s outbox is empty.\n")
         return
@@ -185,14 +192,13 @@ def cmd_logs(args):
     if not args:
         print("Usage: logs <id> [lines]")
         return
-    agent_id = args[0]
-    agent = get_agent(agent_id)
+    agent = get_agent(args[0])
     if not agent:
-        print(f"Not found: {agent_id}")
+        print(f"Not found: {args[0]}")
         return
 
     lines = int(args[1]) if len(args) > 1 else 50
-    log_file = Path(".context/logs") / f"{agent_id}.log"
+    log_file = Path(".context/logs") / f"{agent.id}.log"
 
     if not log_file.exists():
         print(f"No logs for {agent.name}")
@@ -228,7 +234,7 @@ def cmd_run(args):
             print(f"Not found: {args[0]}")
             return
         print(f"Running {agent.name}...")
-        result = run_agent(args[0])
+        result = run_agent(agent.id)
         if result.get("error"):
             print(f"Error: {result['error']}")
         else:
@@ -290,41 +296,7 @@ def repl():
             if cmd in ("quit", "exit", "q"):
                 stop_loop()
                 break
-            elif cmd == "add":
-                cmd_add(args)
-            elif cmd == "rm":
-                cmd_rm(args)
-            elif cmd == "status":
-                cmd_status()
-            elif cmd == "send":
-                cmd_send(args)
-            elif cmd == "broadcast":
-                cmd_broadcast(args)
-            elif cmd == "start":
-                cmd_start(args)
-            elif cmd == "stop":
-                cmd_stop()
-            elif cmd == "run":
-                cmd_run(args)
-            elif cmd == "memos":
-                cmd_memos()
-            elif cmd == "read":
-                cmd_read(args)
-            elif cmd == "logs":
-                cmd_logs(args)
-            elif cmd == "inbox":
-                cmd_inbox(args)
-            elif cmd == "outbox":
-                cmd_outbox(args)
-            elif cmd == "messages":
-                cmd_messages(args)
-            elif cmd == "clear":
-                cmd_clear(args)
-            elif cmd == "sent":
-                cmd_sent(args)
-            elif cmd == "help":
-                cmd_help()
-            else:
+            elif not run_command(cmd, args):
                 print(f"Unknown: {cmd}")
 
         except KeyboardInterrupt:
@@ -333,24 +305,57 @@ def repl():
             break
 
 
+def run_command(cmd: str, args: list[str]) -> bool:
+    """Run a single command. Returns True if command was recognized."""
+    if cmd == "add":
+        cmd_add(args)
+    elif cmd == "rm":
+        cmd_rm(args)
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "send":
+        cmd_send(args)
+    elif cmd == "broadcast":
+        cmd_broadcast(args)
+    elif cmd == "start":
+        cmd_start(args)
+    elif cmd == "stop":
+        cmd_stop()
+    elif cmd == "run":
+        cmd_run(args)
+    elif cmd == "memos":
+        cmd_memos()
+    elif cmd == "read":
+        cmd_read(args)
+    elif cmd == "logs":
+        cmd_logs(args)
+    elif cmd == "inbox":
+        cmd_inbox(args)
+    elif cmd == "outbox":
+        cmd_outbox(args)
+    elif cmd == "messages":
+        cmd_messages(args)
+    elif cmd == "clear":
+        cmd_clear(args)
+    elif cmd == "sent":
+        cmd_sent(args)
+    elif cmd == "help":
+        cmd_help()
+    else:
+        return False
+    return True
+
+
 def main():
     if len(sys.argv) < 2:
         repl()
         return
 
-    cmd = sys.argv[1]
+    cmd = sys.argv[1].lower()
+    args = sys.argv[2:]
 
-    if cmd == "add":
-        if len(sys.argv) < 5:
-            print("Usage: python main.py add <id> <name> <role>")
-            return
-        cmd_add(sys.argv[2:])
-    elif cmd == "rm":
-        if len(sys.argv) < 3:
-            print("Usage: python main.py rm <id>")
-            return
-        cmd_rm(sys.argv[2:])
-    else:
+    if not run_command(cmd, args):
+        print(f"Unknown command: {cmd}")
         print(__doc__)
 
 
