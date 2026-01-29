@@ -2,6 +2,11 @@
 
 A minimal multi-agent system with file-based communication.
 
+## Prerequisites
+
+- Python 3
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+
 ## Quick Start
 
 ```bash
