@@ -64,6 +64,18 @@ help                    - Show help
 quit                    - Exit
 ```
 
+## CLI Mode
+
+Any command can be run directly from bash for scripting:
+
+```bash
+python3 main.py add researcher Remy "You find information."
+python3 main.py broadcast "What is the weather?"
+python3 main.py start
+python3 main.py status
+python3 main.py logs researcher
+```
+
 ## How It Works
 
 ```
