@@ -1,0 +1,22 @@
+# Context directory (agent state)
+.context/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.eggs/
+*.egg-info/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
