@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{{ agent.name }} - Bullpen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-sm">
+        <a href="/" class="text-ink-500 hover:text-ink-300">Agents</a>
+        <span class="text-ink-700">/</span>
+        <span class="text-ink-300">{{ agent.name }}</span>
+    </div>
+
+    <!-- Header -->
+    <div class="flex items-start justify-between">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-lg bg-ink-800 flex items-center justify-center text-xl font-semibold text-ink-400">
+                {{ agent.name[0] }}
+            </div>
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-semibold tracking-tight">{{ agent.name }}</h1>
+                    <span class="font-mono text-sm text-ink-500">{{ agent.id }}</span>
+                    {% if agent.status == 'benched' %}
+                    <span class="agent-status text-amber-500 uppercase">benched</span>
+                    {% else %}
+                    <span class="agent-status text-emerald-500 uppercase">active</span>
+                    {% endif %}
+                </div>
+                <p class="text-ink-500 mt-1">{{ agent.role }}</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            {% if agent.status == 'active' %}
+            <button
+                hx-post="/api/agents/{{ agent.id }}/bench"
+                hx-swap="none"
+                hx-on::after-request="location.reload()"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg bg-ink-800 text-amber-400 border border-ink-700 hover:bg-ink-700 transition-colors">
+                Bench
+            </button>
+            {% else %}
+            <button
+                hx-post="/api/agents/{{ agent.id }}/activate"
+                hx-swap="none"
+                hx-on::after-request="location.reload()"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg bg-ink-800 text-emerald-400 border border-ink-700 hover:bg-ink-700 transition-colors">
+                Activate
+            </button>
+            {% endif %}
+            <button
+                hx-post="/api/loop/run/{{ agent.id }}"
+                hx-swap="none"
+                hx-on::after-request="refreshLogs()"
+                class="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
+                <svg class="w-4 h-4 htmx-indicator animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                <svg class="w-4 h-4 htmx-hide-on-request" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/></svg>
+                Run Now
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Logs -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-ink-800">
+                    <h2 class="text-sm font-medium text-ink-300">Output</h2>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-2 text-xs text-ink-500">
+                            <input type="checkbox" id="auto-scroll" checked class="rounded bg-ink-800 border-ink-700 text-emerald-500 focus:ring-emerald-500/20">
+                            Auto-scroll
+                        </label>
+                        <button onclick="refreshLogs()" class="text-xs text-ink-500 hover:text-ink-300">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="log-viewer" hx-get="/partials/logs/{{ agent.id }}" hx-trigger="load, refresh-logs from:body" hx-swap="innerHTML">
+                    {% include "partials/log_viewer.html" %}
+                </div>
+            </div>
+
+            <!-- Send Message -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+                <h2 class="text-sm font-medium text-ink-300 mb-3">Send Message</h2>
+                <form hx-post="/api/messages/send/{{ agent.id }}" hx-swap="none" hx-on::after-request="this.reset()">
+                    <textarea name="message" required rows="3"
+                              class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600 resize-none mb-3"
+                              placeholder="Message to {{ agent.name }}..."></textarea>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-ink-800 text-ink-200 hover:bg-ink-700 transition-colors">
+                        Send
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Inbox -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+                <h3 class="text-xs font-medium text-ink-500 uppercase tracking-wide mb-3">Inbox <span class="text-ink-600">({{ inbox|length }})</span></h3>
+                {% if inbox %}
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    {% for msg in inbox %}
+                    <div class="text-xs bg-ink-950 border border-ink-800 p-2 rounded">
+                        <div class="text-ink-600 font-mono mb-1">{{ msg.file }}</div>
+                        <div class="text-ink-400 whitespace-pre-wrap">{{ msg.content[:150] }}{% if msg.content|length > 150 %}...{% endif %}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-ink-600 italic">Empty</p>
+                {% endif %}
+            </div>
+
+            <!-- Outbox -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+                <h3 class="text-xs font-medium text-ink-500 uppercase tracking-wide mb-3">Outbox <span class="text-ink-600">({{ outbox|length }})</span></h3>
+                {% if outbox %}
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    {% for msg in outbox %}
+                    <div class="text-xs bg-ink-950 border border-ink-800 p-2 rounded">
+                        <div class="text-ink-600 font-mono mb-1">{{ msg.file }}</div>
+                        <div class="text-ink-400 whitespace-pre-wrap">{{ msg.content[:150] }}{% if msg.content|length > 150 %}...{% endif %}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-ink-600 italic">Empty</p>
+                {% endif %}
+            </div>
+
+            <!-- Memories -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+                <h3 class="text-xs font-medium text-ink-500 uppercase tracking-wide mb-3">Memories <span class="text-ink-600">({{ memories|length }})</span></h3>
+                {% if memories %}
+                <ul class="space-y-2">
+                    {% for mem in memories %}
+                    <li class="text-xs text-ink-400">
+                        <span class="text-ink-600 font-mono">{{ mem.timestamp[:10] }}</span>
+                        <span class="ml-2">{{ mem.content }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-xs text-ink-600 italic">No memories yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshLogs() {
+    htmx.trigger(document.body, 'refresh-logs');
+    setTimeout(() => {
+        if (document.getElementById('auto-scroll').checked) {
+            const logContent = document.getElementById('log-content');
+            if (logContent) logContent.scrollTop = logContent.scrollHeight;
+        }
+    }, 200);
+}
+
+setInterval(() => {
+    if (!document.hidden) refreshLogs();
+}, 3000);
+</script>
+{% endblock %}

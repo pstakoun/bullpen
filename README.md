@@ -9,11 +9,22 @@ A minimal multi-agent system with file-based communication.
 
 ## Quick Start
 
+### CLI Mode
 ```bash
 python3 main.py
 ```
 
 This starts a REPL where you can create agents, send messages, and run the bullpen.
+
+### Web UI
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 bullpen_web.py
+```
+
+Then open http://localhost:8000 in your browser.
 
 ## Example Session
 

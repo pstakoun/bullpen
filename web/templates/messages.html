@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Messages - Bullpen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Messages</h1>
+        <p class="text-ink-500 text-sm mt-1">Send messages to agents and view their replies</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left column -->
+        <div class="space-y-6">
+            <!-- Compose -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+                <h2 class="text-sm font-medium text-ink-300 mb-4">Compose</h2>
+                <form id="send-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">To</label>
+                        <select id="recipient" class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600">
+                            <option value="broadcast">All Agents (Broadcast)</option>
+                            {% for agent in agents %}
+                            <option value="{{ agent.id }}">{{ agent.name }} ({{ agent.id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Message</label>
+                        <textarea id="message-text" required rows="4"
+                                  class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600 resize-none"
+                                  placeholder="Your message..."></textarea>
+                    </div>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-ink-800 text-ink-200 hover:bg-ink-700 transition-colors">
+                        Send Message
+                    </button>
+                </form>
+            </div>
+
+            <!-- Sent Messages -->
+            <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+                <h2 class="text-sm font-medium text-ink-300 mb-4">Sent <span class="text-ink-600">({{ outbox|length }})</span></h2>
+                {% if outbox %}
+                <div class="space-y-2 max-h-80 overflow-y-auto">
+                    {% for msg in outbox %}
+                    <div class="text-xs bg-ink-950 border border-ink-800 p-3 rounded">
+                        <div class="text-ink-600 font-mono mb-2">{{ msg.file }}</div>
+                        <div class="text-ink-400 whitespace-pre-wrap">{{ msg.content[:300] }}{% if msg.content|length > 300 %}...{% endif %}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-ink-600 italic">No sent messages</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Inbox -->
+        <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-medium text-ink-300">Inbox <span class="text-ink-600">({{ inbox|length }})</span></h2>
+                {% if inbox %}
+                <button
+                    hx-post="/api/messages/user/clear"
+                    hx-swap="none"
+                    hx-confirm="Clear all messages?"
+                    hx-on::after-request="location.reload()"
+                    class="text-xs text-red-400 hover:text-red-300">
+                    Clear all
+                </button>
+                {% endif %}
+            </div>
+            {% if inbox %}
+            <div class="space-y-2 max-h-[500px] overflow-y-auto">
+                {% for msg in inbox %}
+                <div class="text-xs bg-ink-950 border border-ink-800 p-3 rounded">
+                    <div class="text-ink-600 font-mono mb-2">{{ msg.file }}</div>
+                    <div class="text-ink-400 whitespace-pre-wrap">{{ msg.content }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12 text-ink-600">
+                <svg class="w-10 h-10 mx-auto mb-3 text-ink-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <p class="text-sm">No messages from agents</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('send-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const recipient = document.getElementById('recipient').value;
+    const message = document.getElementById('message-text').value;
+
+    const formData = new FormData();
+    formData.append('message', message);
+
+    const url = recipient === 'broadcast'
+        ? '/api/messages/broadcast'
+        : `/api/messages/send/${recipient}`;
+
+    const response = await fetch(url, { method: 'POST', body: formData });
+    if (response.ok) {
+        document.getElementById('message-text').value = '';
+        location.reload();
+    }
+});
+</script>
+{% endblock %}

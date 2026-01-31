@@ -1,0 +1,16 @@
+{% if loop_status.running %}
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+    <span class="relative flex h-2 w-2">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+    </span>
+    <span class="agent-status text-emerald-400 uppercase">
+        {% if loop_status.current_agent_name %}running {{ loop_status.current_agent_name }}{% else %}running{% endif %}
+    </span>
+</div>
+{% else %}
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-ink-800/50 border border-ink-700/50">
+    <span class="inline-flex rounded-full h-2 w-2 bg-ink-600"></span>
+    <span class="agent-status text-ink-500 uppercase">idle</span>
+</div>
+{% endif %}

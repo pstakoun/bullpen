@@ -1,0 +1,366 @@
+"""Bullpen Web UI - FastAPI application."""
+import asyncio
+from pathlib import Path
+from typing import Optional
+
+from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.agents.registry import (
+    list_agents, get_agent, create_agent, delete_agent,
+    bench_agent, activate_agent
+)
+from src.agents.memory import get_memories
+from src.messaging.inbox import send_to_agent, broadcast, read_inbox, read_outbox
+from src.messaging.memos import list_memos, read_memo
+from src.runner import (
+    start_loop, stop_loop, get_loop_status, run_agent, run_cycle
+)
+
+app = FastAPI(title="Bullpen")
+
+# Setup templates and static files
+BASE_DIR = Path(__file__).parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+CONTEXT_DIR = Path(".context")
+LOGS_DIR = CONTEXT_DIR / "logs"
+
+
+# ============================================================================
+# HTML Pages
+# ============================================================================
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """Main dashboard page."""
+    agents = list_agents()
+    loop_status = get_loop_status()
+    memos = list_memos(limit=5)
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "agents": agents,
+        "loop_status": loop_status,
+        "memos": memos,
+    })
+
+
+@app.get("/agents/{agent_id}", response_class=HTMLResponse)
+async def agent_detail(request: Request, agent_id: str):
+    """Agent detail page with logs and messages."""
+    agent = get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    loop_status = get_loop_status()
+    memories = get_memories(agent_id, limit=10)
+    inbox = read_inbox(agent_id, clear=False)
+    outbox = read_outbox(agent_id)
+
+    # Get last 100 lines of logs
+    log_content = ""
+    log_file = LOGS_DIR / f"{agent_id}.log"
+    if log_file.exists():
+        lines = log_file.read_text().split("\n")
+        log_content = "\n".join(lines[-100:])
+
+    return templates.TemplateResponse("agent_detail.html", {
+        "request": request,
+        "agent": agent,
+        "loop_status": loop_status,
+        "memories": memories,
+        "inbox": inbox,
+        "outbox": outbox,
+        "log_content": log_content,
+    })
+
+
+@app.get("/messages", response_class=HTMLResponse)
+async def messages_page(request: Request):
+    """Messages page."""
+    agents = list_agents()
+    loop_status = get_loop_status()
+    user_inbox = read_inbox("user", clear=False)
+    user_outbox = read_outbox("user")
+    return templates.TemplateResponse("messages.html", {
+        "request": request,
+        "agents": agents,
+        "loop_status": loop_status,
+        "inbox": user_inbox,
+        "outbox": user_outbox,
+    })
+
+
+@app.get("/memos", response_class=HTMLResponse)
+async def memos_page(request: Request):
+    """Memos page."""
+    loop_status = get_loop_status()
+    memos = list_memos(limit=50)
+    return templates.TemplateResponse("memos.html", {
+        "request": request,
+        "loop_status": loop_status,
+        "memos": memos,
+    })
+
+
+# ============================================================================
+# API: Agents
+# ============================================================================
+
+@app.get("/api/agents")
+async def api_list_agents():
+    """List all agents."""
+    agents = list_agents()
+    return [{"id": a.id, "name": a.name, "role": a.role, "status": a.status} for a in agents]
+
+
+@app.post("/api/agents")
+async def api_create_agent(
+    agent_id: str = Form(...),
+    name: str = Form(...),
+    role: str = Form(...)
+):
+    """Create a new agent."""
+    if get_agent(agent_id):
+        raise HTTPException(status_code=400, detail="Agent already exists")
+    agent = create_agent(agent_id, name, role)
+    return {"id": agent.id, "name": agent.name, "role": agent.role, "status": agent.status}
+
+
+@app.delete("/api/agents/{agent_id}")
+async def api_delete_agent(agent_id: str):
+    """Delete an agent."""
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    delete_agent(agent_id)
+    return {"deleted": agent_id}
+
+
+@app.post("/api/agents/{agent_id}/bench")
+async def api_bench_agent(agent_id: str):
+    """Bench an agent."""
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    bench_agent(agent_id)
+    return {"benched": agent_id}
+
+
+@app.post("/api/agents/{agent_id}/activate")
+async def api_activate_agent(agent_id: str):
+    """Activate a benched agent."""
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    activate_agent(agent_id)
+    return {"activated": agent_id}
+
+
+# ============================================================================
+# API: Loop Control
+# ============================================================================
+
+@app.get("/api/loop/status")
+async def api_loop_status():
+    """Get loop status."""
+    status = get_loop_status()
+    # Add agent name if running
+    if status["current_agent"]:
+        agent = get_agent(status["current_agent"])
+        status["current_agent_name"] = agent.name if agent else status["current_agent"]
+    return status
+
+
+@app.post("/api/loop/start")
+async def api_start_loop():
+    """Start the agent loop."""
+    if start_loop():
+        return {"started": True}
+    return {"started": False, "message": "Already running"}
+
+
+@app.post("/api/loop/stop")
+async def api_stop_loop():
+    """Stop the agent loop."""
+    stop_loop()
+    return {"stopped": True}
+
+
+@app.post("/api/loop/run")
+async def api_run_cycle():
+    """Run one cycle of all agents."""
+    results = run_cycle()
+    return {"results": results}
+
+
+@app.post("/api/loop/run/{agent_id}")
+async def api_run_agent(agent_id: str):
+    """Run a single agent."""
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = run_agent(agent_id)
+    return result
+
+
+# ============================================================================
+# API: Messages
+# ============================================================================
+
+@app.post("/api/messages/send/{agent_id}")
+async def api_send_message(agent_id: str, message: str = Form(...)):
+    """Send a message to an agent."""
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    send_to_agent(agent_id, message, sender="user")
+    return {"sent": True, "to": agent_id}
+
+
+@app.post("/api/messages/broadcast")
+async def api_broadcast(message: str = Form(...)):
+    """Broadcast a message to all active agents."""
+    paths = broadcast(message, sender="user")
+    return {"sent": True, "count": len(paths)}
+
+
+@app.get("/api/messages/inbox/{agent_id}")
+async def api_agent_inbox(agent_id: str):
+    """Get an agent's inbox."""
+    messages = read_inbox(agent_id, clear=False)
+    return messages
+
+
+@app.get("/api/messages/user")
+async def api_user_inbox():
+    """Get user's inbox (messages from agents)."""
+    messages = read_inbox("user", clear=False)
+    return messages
+
+
+@app.post("/api/messages/user/clear")
+async def api_clear_user_inbox():
+    """Clear user's inbox."""
+    messages = read_inbox("user", clear=True)
+    return {"cleared": len(messages)}
+
+
+# ============================================================================
+# API: Memos
+# ============================================================================
+
+@app.get("/api/memos")
+async def api_list_memos(limit: int = 20):
+    """List memos."""
+    return list_memos(limit=limit)
+
+
+@app.get("/api/memos/{filename:path}")
+async def api_read_memo(filename: str):
+    """Read a specific memo."""
+    content = read_memo(filename)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Memo not found")
+    return {"filename": filename, "content": content}
+
+
+# ============================================================================
+# API: Logs
+# ============================================================================
+
+@app.get("/api/logs/{agent_id}")
+async def api_get_logs(agent_id: str, lines: int = 100):
+    """Get agent logs (last N lines)."""
+    log_file = LOGS_DIR / f"{agent_id}.log"
+    if not log_file.exists():
+        return {"content": "", "lines": 0}
+
+    content = log_file.read_text()
+    log_lines = content.split("\n")
+    last_lines = log_lines[-lines:]
+    return {"content": "\n".join(last_lines), "lines": len(last_lines)}
+
+
+@app.get("/api/logs/{agent_id}/stream")
+async def api_stream_logs(agent_id: str):
+    """SSE stream for live logs."""
+    log_file = LOGS_DIR / f"{agent_id}.log"
+
+    async def event_generator():
+        last_size = 0
+        if log_file.exists():
+            last_size = log_file.stat().st_size
+            # Send last 50 lines initially
+            content = log_file.read_text()
+            lines = content.split("\n")[-50:]
+            initial = "\n".join(lines).replace("\n", "\\n")
+            yield f"data: {initial}\n\n"
+
+        while True:
+            await asyncio.sleep(0.5)
+            if not log_file.exists():
+                continue
+
+            current_size = log_file.stat().st_size
+            if current_size > last_size:
+                with open(log_file, "r") as f:
+                    f.seek(last_size)
+                    new_content = f.read()
+                    if new_content:
+                        # Escape for SSE
+                        escaped = new_content.replace("\n", "\\n")
+                        yield f"data: {escaped}\n\n"
+                last_size = current_size
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )
+
+
+# ============================================================================
+# Partials (htmx fragments)
+# ============================================================================
+
+@app.get("/partials/agent-list", response_class=HTMLResponse)
+async def partial_agent_list(request: Request):
+    """Partial: agent list for htmx refresh."""
+    agents = list_agents()
+    loop_status = get_loop_status()
+    return templates.TemplateResponse("partials/agent_list.html", {
+        "request": request,
+        "agents": agents,
+        "loop_status": loop_status,
+    })
+
+
+@app.get("/partials/status", response_class=HTMLResponse)
+async def partial_status(request: Request):
+    """Partial: loop status badge."""
+    loop_status = get_loop_status()
+    if loop_status["current_agent"]:
+        agent = get_agent(loop_status["current_agent"])
+        loop_status["current_agent_name"] = agent.name if agent else loop_status["current_agent"]
+    return templates.TemplateResponse("partials/status.html", {
+        "request": request,
+        "loop_status": loop_status,
+    })
+
+
+@app.get("/partials/logs/{agent_id}", response_class=HTMLResponse)
+async def partial_logs(request: Request, agent_id: str, lines: int = 100):
+    """Partial: log viewer content."""
+    log_file = LOGS_DIR / f"{agent_id}.log"
+    log_content = ""
+    if log_file.exists():
+        content = log_file.read_text()
+        log_lines = content.split("\n")
+        log_content = "\n".join(log_lines[-lines:])
+    return templates.TemplateResponse("partials/log_viewer.html", {
+        "request": request,
+        "agent_id": agent_id,
+        "log_content": log_content,
+    })
