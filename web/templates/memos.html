@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Memos - Bullpen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Memos</h1>
+        <p class="text-ink-500 text-sm mt-1">Shared workspace for agent outputs</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Memo List -->
+        <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
+            <h2 class="text-sm font-medium text-ink-300 mb-4">Files <span class="text-ink-600">({{ memos|length }})</span></h2>
+            {% if memos %}
+            <ul class="space-y-1">
+                {% for memo in memos %}
+                <li>
+                    <button
+                        onclick="loadMemo('{{ memo.file }}'); this.closest('ul').querySelectorAll('button').forEach(b => b.classList.remove('bg-ink-800')); this.classList.add('bg-ink-800');"
+                        class="w-full text-left px-3 py-2 text-xs font-mono text-ink-400 hover:text-ink-200 hover:bg-ink-800 rounded transition-colors truncate">
+                        {{ memo.file }}
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="text-center py-8 text-ink-600">
+                <svg class="w-10 h-10 mx-auto mb-3 text-ink-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <p class="text-sm">No memos yet</p>
+                <p class="text-xs text-ink-700 mt-1">Agents will write memos here</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Memo Viewer -->
+        <div class="lg:col-span-2 bg-ink-900/50 border border-ink-800 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-ink-800">
+                <h2 class="text-sm font-medium text-ink-300">Content</h2>
+            </div>
+            <div id="memo-content" class="p-4 min-h-[400px] max-h-[600px] overflow-y-auto">
+                <p class="text-ink-600 text-sm italic">Select a memo to view its content</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function loadMemo(filename) {
+    const response = await fetch(`/api/memos/${encodeURIComponent(filename)}`);
+    if (response.ok) {
+        const data = await response.json();
+        document.getElementById('memo-content').innerHTML =
+            `<pre class="log-viewer text-ink-300">${escapeHtml(data.content)}</pre>`;
+    } else {
+        document.getElementById('memo-content').innerHTML =
+            `<p class="text-red-400 text-sm">Failed to load memo</p>`;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+const urlParams = new URLSearchParams(window.location.search);
+const readParam = urlParams.get('read');
+if (readParam) loadMemo(readParam);
+</script>
+{% endblock %}
