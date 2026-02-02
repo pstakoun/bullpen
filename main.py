@@ -7,11 +7,12 @@ Usage:
     python main.py <command>    - Run a single command
 
 Examples:
-    python main.py add researcher Remy "You find information."
+    python main.py add "Research analyst"
+    python main.py add Remy "Research analyst"
     python main.py broadcast "What is the weather?"
     python main.py start
     python main.py status
-    python main.py logs researcher
+    python main.py logs Remy
 """
 import sys
 import readline
@@ -19,27 +20,51 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.agents.registry import list_agents, get_agent, create_agent, delete_agent
+from src.agents.registry import (
+    list_agents,
+    get_agent,
+    create_agent,
+    delete_agent,
+    resolve_agent,
+    update_agent,
+    get_team_instructions,
+    set_team_instructions,
+    init_all_agent_dirs,
+)
 from src.messaging.inbox import send_to_agent, broadcast, read_inbox, read_outbox
 from src.messaging.memos import list_memos, read_memo
 from src.runner import start_loop, stop_loop, is_running, run_agent, get_loop_status
 
 
 def cmd_add(args):
-    if len(args) < 3:
-        print("Usage: add <id> <name> <role>")
+    if not args:
+        print("Usage: add <role>           - auto-generate name")
+        print("       add <name> <role>    - use provided name")
         return
-    agent = create_agent(args[0], args[1], " ".join(args[2:]))
-    print(f"Created: {agent.name} ({agent.id})")
+
+    # If only one arg, it's the role (auto-generate name)
+    # If multiple args, first is name, rest is role
+    if len(args) == 1:
+        role = args[0]
+        name = None
+    else:
+        name = args[0]
+        role = " ".join(args[1:])
+
+    try:
+        agent = create_agent(role=role, name=name)
+        print(f"Created: {agent.name}")
+    except ValueError as e:
+        print(f"Error: {e}")
 
 
 def cmd_rm(args):
     if not args:
-        print("Usage: rm <id>")
+        print("Usage: rm <name>")
         return
-    agent = get_agent(args[0])
+    agent = resolve_agent(args[0])
     if agent and delete_agent(agent.id):
-        print(f"Removed: {agent.name} ({agent.id})")
+        print(f"Removed: {agent.name}")
     else:
         print(f"Not found: {args[0]}")
 
@@ -70,16 +95,15 @@ def cmd_status():
             icon = "✓"
         else:
             icon = "○"
-        print(f"  {icon} {agent.name} ({agent.id})")
-        print(f"    {agent.role}")
+        print(f"  {icon} {agent.name} - {agent.role}")
     print()
 
 
 def cmd_send(args):
     if len(args) < 2:
-        print("Usage: send <id> <message>")
+        print("Usage: send <name> <message>")
         return
-    agent = get_agent(args[0])
+    agent = resolve_agent(args[0])
     if not agent:
         print(f"Not found: {args[0]}")
         return
@@ -119,9 +143,9 @@ def cmd_read(args):
 
 def cmd_inbox(args):
     if not args:
-        print("Usage: inbox <id>")
+        print("Usage: inbox <name>")
         return
-    agent = get_agent(args[0])
+    agent = resolve_agent(args[0])
     if not agent:
         print(f"Not found: {args[0]}")
         return
@@ -138,9 +162,9 @@ def cmd_inbox(args):
 
 def cmd_outbox(args):
     if not args:
-        print("Usage: outbox <id>")
+        print("Usage: outbox <name>")
         return
-    agent = get_agent(args[0])
+    agent = resolve_agent(args[0])
     if not agent:
         print(f"Not found: {args[0]}")
         return
@@ -190,9 +214,9 @@ def cmd_sent(args):
 
 def cmd_logs(args):
     if not args:
-        print("Usage: logs <id> [lines]")
+        print("Usage: logs <name> [lines]")
         return
-    agent = get_agent(args[0])
+    agent = resolve_agent(args[0])
     if not agent:
         print(f"Not found: {args[0]}")
         return
@@ -229,7 +253,7 @@ def cmd_stop():
 def cmd_run(args):
     if args:
         # Run specific agent
-        agent = get_agent(args[0])
+        agent = resolve_agent(args[0])
         if not agent:
             print(f"Not found: {args[0]}")
             return
@@ -251,28 +275,80 @@ def cmd_run(args):
         print("Done")
 
 
+def cmd_edit(args):
+    if len(args) < 3:
+        print("Usage: edit <name> <field> <value>")
+        print("Fields: name, role, instructions")
+        return
+    agent = resolve_agent(args[0])
+    if not agent:
+        print(f"Not found: {args[0]}")
+        return
+
+    field = args[1].lower()
+    value = " ".join(args[2:])
+
+    try:
+        if field == "name":
+            update_agent(agent.id, name=value)
+        elif field == "role":
+            update_agent(agent.id, role=value)
+        elif field == "instructions":
+            update_agent(agent.id, instructions=value)
+        else:
+            print(f"Unknown field: {field}")
+            print("Fields: name, role, instructions")
+            return
+        print(f"Updated {agent.name}")
+    except ValueError as e:
+        print(f"Error: {e}")
+
+
+def cmd_team(args):
+    if not args:
+        # Show current team instructions
+        instructions = get_team_instructions()
+        if instructions:
+            print(f"\n--- Team Instructions ---\n")
+            print(instructions)
+            print()
+        else:
+            print("No team instructions set.")
+            print("Usage: team <instructions>")
+        return
+
+    # Set team instructions
+    instructions = " ".join(args)
+    set_team_instructions(instructions)
+    print("Team instructions updated.")
+
+
 def cmd_help():
     print("""
 Commands:
   status                  - Show agents and loop status
   start                   - Start continuous loop
   stop                    - Stop the loop
-  run [id]                - Run one cycle (or one agent)
+  run [name]              - Run one cycle (or one agent)
 
-  send <id> <msg>         - Send message to agent
+  send <name> <msg>       - Send message to agent
   broadcast <msg>         - Send to all agents
   messages                - View messages from agents (your inbox)
   sent                    - View your sent messages (your outbox)
   clear                   - Clear your inbox
 
-  inbox <id>              - View agent's inbox
-  outbox <id>             - View agent's outbox
-  logs <id> [lines]       - View agent logs
+  inbox <name>            - View agent's inbox
+  outbox <name>           - View agent's outbox
+  logs <name> [lines]     - View agent logs
   memos                   - List shared memos
   read <file>             - Read a memo
 
-  add <id> <name> <role>  - Add an agent
-  rm <id>                 - Remove an agent
+  add <role>              - Add agent (auto-generate name)
+  add <name> <role>       - Add agent with name
+  edit <name> <field> <v> - Edit agent (name, role, instructions)
+  rm <name>               - Remove an agent
+  team [instructions]     - View/set team instructions
+
   help                    - Show this help
   quit                    - Exit
 """)
@@ -311,6 +387,8 @@ def run_command(cmd: str, args: list[str]) -> bool:
         cmd_add(args)
     elif cmd == "rm":
         cmd_rm(args)
+    elif cmd == "edit":
+        cmd_edit(args)
     elif cmd == "status":
         cmd_status()
     elif cmd == "send":
@@ -339,6 +417,8 @@ def run_command(cmd: str, args: list[str]) -> bool:
         cmd_clear(args)
     elif cmd == "sent":
         cmd_sent(args)
+    elif cmd == "team":
+        cmd_team(args)
     elif cmd == "help":
         cmd_help()
     else:
@@ -347,6 +427,9 @@ def run_command(cmd: str, args: list[str]) -> bool:
 
 
 def main():
+    # Initialize directory structure
+    init_all_agent_dirs()
+
     if len(sys.argv) < 2:
         repl()
         return

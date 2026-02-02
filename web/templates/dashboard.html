@@ -40,6 +40,25 @@
         </div>
     </div>
 
+    <!-- Team Instructions (Collapsible) -->
+    <details class="bg-ink-900/30 border border-ink-800 rounded-lg">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-ink-400 hover:text-ink-200 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Team Instructions
+            {% if team_instructions %}<span class="text-xs text-ink-600 ml-2">(configured)</span>{% endif %}
+        </summary>
+        <div class="px-4 pb-4">
+            <form hx-put="/api/team/instructions" hx-swap="none" hx-on::after-request="htmx.trigger(document.body, 'refresh-agents')">
+                <textarea name="instructions" rows="4"
+                          class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600 resize-none mb-2"
+                          placeholder="Instructions that apply to all agents...">{{ team_instructions }}</textarea>
+                <button type="submit" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-ink-800 text-ink-300 hover:bg-ink-700 transition-colors">
+                    Save
+                </button>
+            </form>
+        </div>
+    </details>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Agent List -->
         <div class="lg:col-span-2 space-y-4">
@@ -47,38 +66,57 @@
                 {% include "partials/agent_list.html" %}
             </div>
 
-            <!-- Add Agent -->
-            <div class="border border-dashed border-ink-800 rounded-lg p-6 hover:border-ink-700 transition-colors">
-                <form hx-post="/api/agents" hx-swap="none" hx-on::after-request="this.reset(); htmx.trigger(document.body, 'refresh-agents')" class="space-y-4">
-                    <div class="flex items-center gap-2 mb-4">
-                        <svg class="w-5 h-5 text-ink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                        <span class="text-sm font-medium text-ink-400">Add Agent</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">ID</label>
-                            <input type="text" name="agent_id" required
-                                   class="w-full bg-ink-900 border border-ink-800 rounded-lg px-3 py-2 text-sm font-mono placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600"
-                                   placeholder="researcher">
+            <!-- Add Agent Button + Collapsible Form -->
+            <details id="add-agent-details" class="group">
+                <summary class="flex items-center justify-center gap-2 py-3 border border-dashed border-ink-800 rounded-lg text-ink-500 hover:text-ink-300 hover:border-ink-700 cursor-pointer transition-colors list-none">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                    <span class="text-sm font-medium">New Agent</span>
+                </summary>
+                <div class="mt-4 border border-ink-800 rounded-lg p-6 bg-ink-900/30">
+                    <form id="add-agent-form" hx-post="/api/agents" hx-swap="none" hx-on::after-request="this.reset(); htmx.trigger(document.body, 'refresh-agents'); document.getElementById('add-agent-details').removeAttribute('open'); fetchNewName()" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Name</label>
+                                <input type="text" name="name" id="agent-name-input" required
+                                       class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600"
+                                       placeholder="Loading...">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Role</label>
+                                <input type="text" name="role" required
+                                       class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600"
+                                       placeholder="Research analyst">
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Name</label>
-                            <input type="text" name="name" required
-                                   class="w-full bg-ink-900 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600"
-                                   placeholder="Remy">
+                            <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Instructions <span class="text-ink-600">(optional)</span></label>
+                            <textarea name="instructions" rows="2"
+                                      class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600 resize-none"
+                                      placeholder="Detailed instructions for this agent..."></textarea>
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Role</label>
-                        <textarea name="role" required rows="2"
-                                  class="w-full bg-ink-900 border border-ink-800 rounded-lg px-3 py-2 text-sm placeholder-ink-600 focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600 resize-none"
-                                  placeholder="You find and synthesize information from the web."></textarea>
-                    </div>
-                    <button type="submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-ink-800 text-ink-200 hover:bg-ink-700 transition-colors">
-                        Create Agent
-                    </button>
-                </form>
-            </div>
+                        <div class="flex items-center gap-2">
+                            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
+                                Create
+                            </button>
+                            <button type="button" onclick="document.getElementById('add-agent-details').removeAttribute('open')" class="px-4 py-2 text-sm font-medium rounded-lg bg-ink-800 text-ink-400 hover:bg-ink-700 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </details>
+            <script>
+                function fetchNewName() {
+                    fetch('/api/agents/new-name')
+                        .then(r => r.json())
+                        .then(data => {
+                            document.getElementById('agent-name-input').value = data.name;
+                        });
+                }
+                document.getElementById('add-agent-details').addEventListener('toggle', function() {
+                    if (this.open) fetchNewName();
+                });
+            </script>
         </div>
 
         <!-- Sidebar -->

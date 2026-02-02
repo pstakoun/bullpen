@@ -21,7 +21,7 @@
                         <select id="recipient" class="w-full bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-ink-600 focus:ring-1 focus:ring-ink-600">
                             <option value="broadcast">All Agents (Broadcast)</option>
                             {% for agent in agents %}
-                            <option value="{{ agent.id }}">{{ agent.name }} ({{ agent.id }})</option>
+                            <option value="{{ agent.id }}">{{ agent.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -41,12 +41,18 @@
             <div class="bg-ink-900/50 border border-ink-800 rounded-lg p-4">
                 <h2 class="text-sm font-medium text-ink-300 mb-4">Sent <span class="text-ink-600">({{ outbox|length }})</span></h2>
                 {% if outbox %}
-                <div class="space-y-2 max-h-80 overflow-y-auto">
+                <div class="space-y-1 max-h-80 overflow-y-auto">
                     {% for msg in outbox %}
-                    <div class="text-xs bg-ink-950 border border-ink-800 p-3 rounded">
-                        <div class="text-ink-600 font-mono mb-2">{{ msg.file }}</div>
-                        <div class="text-ink-400 whitespace-pre-wrap">{{ msg.content[:300] }}{% if msg.content|length > 300 %}...{% endif %}</div>
-                    </div>
+                    <details class="group">
+                        <summary class="flex items-start gap-2 p-2 rounded cursor-pointer hover:bg-ink-800/50 transition-colors list-none">
+                            <svg class="w-3 h-3 mt-1 text-ink-600 transition-transform group-open:rotate-90 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs text-ink-500 font-mono truncate">{{ msg.file }}</div>
+                                <div class="text-xs text-ink-400 truncate mt-0.5">{{ msg.content[:80] }}{% if msg.content|length > 80 %}...{% endif %}</div>
+                            </div>
+                        </summary>
+                        <div class="ml-5 mt-2 p-3 bg-ink-950 border border-ink-800 rounded text-xs text-ink-300 whitespace-pre-wrap max-h-48 overflow-y-auto">{{ msg.content }}</div>
+                    </details>
                     {% endfor %}
                 </div>
                 {% else %}
@@ -71,12 +77,18 @@
                 {% endif %}
             </div>
             {% if inbox %}
-            <div class="space-y-2 max-h-[500px] overflow-y-auto">
+            <div class="space-y-1 max-h-[500px] overflow-y-auto">
                 {% for msg in inbox %}
-                <div class="text-xs bg-ink-950 border border-ink-800 p-3 rounded">
-                    <div class="text-ink-600 font-mono mb-2">{{ msg.file }}</div>
-                    <div class="text-ink-400 whitespace-pre-wrap">{{ msg.content }}</div>
-                </div>
+                <details class="group">
+                    <summary class="flex items-start gap-2 p-2 rounded cursor-pointer hover:bg-ink-800/50 transition-colors list-none">
+                        <svg class="w-3 h-3 mt-1 text-ink-600 transition-transform group-open:rotate-90 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs text-ink-500 font-mono truncate">{{ msg.file }}</div>
+                            <div class="text-xs text-ink-400 truncate mt-0.5">{{ msg.content[:80] }}{% if msg.content|length > 80 %}...{% endif %}</div>
+                        </div>
+                    </summary>
+                    <div class="ml-5 mt-2 p-3 bg-ink-950 border border-ink-800 rounded text-xs text-ink-300 whitespace-pre-wrap max-h-48 overflow-y-auto">{{ msg.content }}</div>
+                </details>
                 {% endfor %}
             </div>
             {% else %}

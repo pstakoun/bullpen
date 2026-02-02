@@ -20,7 +20,6 @@
                     <a href="/agents/{{ agent.id }}" class="font-medium text-ink-100 hover:text-white">
                         {{ agent.name }}
                     </a>
-                    <span class="font-mono text-xs text-ink-500">{{ agent.id }}</span>
                     {% if agent.status == 'benched' %}
                     <span class="agent-status text-amber-500 uppercase">benched</span>
                     {% endif %}

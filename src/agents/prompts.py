@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .config import AgentConfig
 from .memory import get_memories
+from .registry import list_agents, get_team_instructions
 
 CONTEXT_DIR = Path(".context")
 
@@ -18,14 +19,25 @@ def generate_prompt(agent: AgentConfig) -> str:
     memories = get_memories(agent.id)
     memory_section = _format_memories(memories) if memories else ""
 
+    # Get team context
+    team_instructions = get_team_instructions()
+    team_instructions_section = _format_team_instructions(team_instructions)
+    team_roster_section = _format_team_roster(agent)
+
+    # Agent's own instructions
+    agent_instructions_section = ""
+    if agent.instructions:
+        agent_instructions_section = f"""## Your Instructions
+
+{agent.instructions}
+"""
+
     prompt = f"""# You are {agent.name}
 
 {agent.role}
 
 **Time:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-
-{memory_section}
-
+{team_instructions_section}{team_roster_section}{agent_instructions_section}{memory_section}
 ## Workspace
 
 Your workspace is `.context/` - coordinate with your team there:
@@ -56,4 +68,32 @@ def _format_memories(memories: list[dict]) -> str:
     for m in memories[-5:]:  # Last 5 memories
         lines.append(f"- {m['content']}")
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
+
+
+def _format_team_instructions(instructions: str) -> str:
+    """Format team-wide instructions for inclusion in prompt."""
+    if not instructions or not instructions.strip():
+        return ""
+
+    return f"""
+## Team Instructions
+
+{instructions.strip()}
+"""
+
+
+def _format_team_roster(current_agent: AgentConfig) -> str:
+    """Format team roster (other agents) for inclusion in prompt."""
+    all_agents = list_agents()
+    other_agents = [a for a in all_agents if a.id != current_agent.id]
+
+    if not other_agents:
+        return ""
+
+    lines = ["", "## Your Team", ""]
+    for agent in other_agents:
+        status_note = " (benched)" if agent.status == "benched" else ""
+        lines.append(f"- **{agent.name}** - {agent.role}{status_note}")
+
+    return "\n".join(lines) + "\n"
