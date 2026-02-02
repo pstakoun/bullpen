@@ -13,8 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.agents.registry import (
     list_agents, get_agent, create_agent, delete_agent,
-    bench_agent, activate_agent
+    bench_agent, activate_agent, update_agent, name_exists,
+    get_team_instructions, set_team_instructions, init_all_agent_dirs
 )
+from src.agents.names import generate_name
 from src.agents.memory import get_memories
 from src.messaging.inbox import send_to_agent, broadcast, read_inbox, read_outbox
 from src.messaging.memos import list_memos, read_memo
@@ -23,6 +25,13 @@ from src.runner import (
 )
 
 app = FastAPI(title="Bullpen")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize directory structure on startup."""
+    init_all_agent_dirs()
+
 
 # Setup templates and static files
 BASE_DIR = Path(__file__).parent
@@ -43,11 +52,13 @@ async def dashboard(request: Request):
     agents = list_agents()
     loop_status = get_loop_status()
     memos = list_memos(limit=5)
+    team_instructions = get_team_instructions()
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "agents": agents,
         "loop_status": loop_status,
         "memos": memos,
+        "team_instructions": team_instructions,
     })
 
 
@@ -117,20 +128,31 @@ async def memos_page(request: Request):
 async def api_list_agents():
     """List all agents."""
     agents = list_agents()
-    return [{"id": a.id, "name": a.name, "role": a.role, "status": a.status} for a in agents]
+    return [{"id": a.id, "name": a.name, "role": a.role, "instructions": a.instructions, "status": a.status} for a in agents]
+
+
+@app.get("/api/agents/new-name")
+async def api_new_name():
+    """Generate a new unique agent name."""
+    used_names = [a.name for a in list_agents()]
+    name = generate_name(used_names)
+    return {"name": name}
 
 
 @app.post("/api/agents")
 async def api_create_agent(
-    agent_id: str = Form(...),
     name: str = Form(...),
-    role: str = Form(...)
+    role: str = Form(...),
+    instructions: str = Form("")
 ):
-    """Create a new agent."""
-    if get_agent(agent_id):
-        raise HTTPException(status_code=400, detail="Agent already exists")
-    agent = create_agent(agent_id, name, role)
-    return {"id": agent.id, "name": agent.name, "role": agent.role, "status": agent.status}
+    """Create a new agent with auto-generated ID."""
+    if name_exists(name):
+        raise HTTPException(status_code=400, detail="Agent name already exists")
+    try:
+        agent = create_agent(role=role, name=name, instructions=instructions)
+        return {"id": agent.id, "name": agent.name, "role": agent.role, "instructions": agent.instructions, "status": agent.status}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.delete("/api/agents/{agent_id}")
@@ -140,6 +162,24 @@ async def api_delete_agent(agent_id: str):
         raise HTTPException(status_code=404, detail="Agent not found")
     delete_agent(agent_id)
     return {"deleted": agent_id}
+
+
+@app.put("/api/agents/{agent_id}")
+async def api_update_agent(
+    agent_id: str,
+    name: Optional[str] = Form(None),
+    role: Optional[str] = Form(None),
+    instructions: Optional[str] = Form(None)
+):
+    """Update an agent's fields."""
+    agent = get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        updated = update_agent(agent_id, name=name, role=role, instructions=instructions)
+        return {"id": updated.id, "name": updated.name, "role": updated.role, "instructions": updated.instructions, "status": updated.status}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/agents/{agent_id}/bench")
@@ -264,6 +304,24 @@ async def api_read_memo(filename: str):
     if content is None:
         raise HTTPException(status_code=404, detail="Memo not found")
     return {"filename": filename, "content": content}
+
+
+# ============================================================================
+# API: Team
+# ============================================================================
+
+@app.get("/api/team/instructions")
+async def api_get_team_instructions():
+    """Get team-wide instructions."""
+    instructions = get_team_instructions()
+    return {"instructions": instructions}
+
+
+@app.put("/api/team/instructions")
+async def api_set_team_instructions(instructions: str = Form(...)):
+    """Set team-wide instructions."""
+    set_team_instructions(instructions)
+    return {"updated": True, "instructions": instructions}
 
 
 # ============================================================================

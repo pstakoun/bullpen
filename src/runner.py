@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from src.agents.registry import get_agent, list_agents
+from src.agents.registry import get_agent, list_agents, init_all_agent_dirs
 from src.agents.prompts import generate_prompt
 from src.messaging.inbox import read_inbox
 
@@ -71,6 +71,9 @@ def run_agent(agent_id: str, task: Optional[str] = None) -> dict:
 
 def run_cycle(task: Optional[str] = None) -> list[dict]:
     """Run one cycle of all active agents in sequence."""
+    # Ensure all agent directories exist
+    init_all_agent_dirs()
+
     results = []
     agents = list_agents(active_only=True)
 
@@ -104,6 +107,9 @@ def start_loop():
 
     if _running:
         return False
+
+    # Ensure all agent directories exist
+    init_all_agent_dirs()
 
     _running = True
     _loop_thread = threading.Thread(target=_loop_worker, daemon=True)
