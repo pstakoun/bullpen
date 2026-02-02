@@ -48,10 +48,8 @@
                     <span class="text-lg font-semibold tracking-tight">bullpen</span>
                     <span class="text-[10px] font-mono text-ink-500 group-hover:text-ink-400">v0.1</span>
                 </a>
-                <div class="flex items-center gap-1">
-                    <a href="/" class="px-3 py-1.5 text-sm rounded-md {% if request.url.path == '/' %}bg-ink-800 text-white{% else %}text-ink-400 hover:text-ink-200 hover:bg-ink-900{% endif %} transition-colors">Agents</a>
-                    <a href="/messages" class="px-3 py-1.5 text-sm rounded-md {% if request.url.path == '/messages' %}bg-ink-800 text-white{% else %}text-ink-400 hover:text-ink-200 hover:bg-ink-900{% endif %} transition-colors">Messages</a>
-                    <a href="/memos" class="px-3 py-1.5 text-sm rounded-md {% if request.url.path == '/memos' %}bg-ink-800 text-white{% else %}text-ink-400 hover:text-ink-200 hover:bg-ink-900{% endif %} transition-colors">Memos</a>
+                <div class="flex items-center gap-1" hx-get="/partials/nav" hx-trigger="every 5s" hx-swap="innerHTML">
+                    {% include "partials/nav.html" %}
                 </div>
             </div>
             <div hx-get="/partials/status" hx-trigger="every 2s" hx-swap="innerHTML">

@@ -113,3 +113,13 @@ def read_outbox(agent_id: str) -> list[dict]:
             "content": msg_file.read_text(),
         })
     return messages
+
+
+def delete_inbox_message(agent_id: str, filename: str) -> bool:
+    """Delete a single message from an agent's inbox."""
+    inbox = INBOX_DIR / agent_id
+    msg_file = inbox / filename
+    if msg_file.exists() and msg_file.is_file():
+        msg_file.unlink()
+        return True
+    return False

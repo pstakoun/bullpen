@@ -77,18 +77,29 @@
                 {% endif %}
             </div>
             {% if inbox %}
-            <div class="space-y-1 max-h-[500px] overflow-y-auto">
+            <div class="space-y-1 max-h-[500px] overflow-y-auto" id="inbox-list">
                 {% for msg in inbox %}
-                <details class="group">
-                    <summary class="flex items-start gap-2 p-2 rounded cursor-pointer hover:bg-ink-800/50 transition-colors list-none">
-                        <svg class="w-3 h-3 mt-1 text-ink-600 transition-transform group-open:rotate-90 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-xs text-ink-500 font-mono truncate">{{ msg.file }}</div>
-                            <div class="text-xs text-ink-400 truncate mt-0.5">{{ msg.content[:80] }}{% if msg.content|length > 80 %}...{% endif %}</div>
-                        </div>
-                    </summary>
-                    <div class="ml-5 mt-2 p-3 bg-ink-950 border border-ink-800 rounded text-xs text-ink-300 whitespace-pre-wrap max-h-48 overflow-y-auto">{{ msg.content }}</div>
-                </details>
+                <div class="group/msg" id="msg-{{ loop.index }}">
+                    <details class="group">
+                        <summary class="flex items-start gap-2 p-2 rounded cursor-pointer hover:bg-ink-800/50 transition-colors list-none">
+                            <svg class="w-3 h-3 mt-1 text-ink-600 transition-transform group-open:rotate-90 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs text-ink-500 font-mono truncate">{{ msg.file }}</div>
+                                <div class="text-xs text-ink-400 truncate mt-0.5">{{ msg.content[:80] }}{% if msg.content|length > 80 %}...{% endif %}</div>
+                            </div>
+                            <button
+                                hx-delete="/api/messages/user/{{ msg.file }}"
+                                hx-target="#msg-{{ loop.index }}"
+                                hx-swap="delete"
+                                onclick="event.stopPropagation()"
+                                class="p-1 text-ink-600 hover:text-red-400 opacity-0 group-hover/msg:opacity-100 transition-opacity flex-shrink-0"
+                                title="Delete message">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </summary>
+                        <div class="ml-5 mt-2 p-3 bg-ink-950 border border-ink-800 rounded text-xs text-ink-300 whitespace-pre-wrap max-h-48 overflow-y-auto">{{ msg.content }}</div>
+                    </details>
+                </div>
                 {% endfor %}
             </div>
             {% else %}
