@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import AgentConfig
+from .context import init_agent_context_dir
 from .names import generate_name, generate_id
 
 CONTEXT_DIR = Path(".context")
@@ -27,9 +28,10 @@ def init_context() -> None:
 
 
 def _init_agent_dirs(agent_id: str) -> None:
-    """Initialize inbox/outbox directories for an agent."""
+    """Initialize inbox/outbox directories and personal context for an agent."""
     (INBOX_DIR / agent_id).mkdir(parents=True, exist_ok=True)
     (OUTBOX_DIR / agent_id).mkdir(parents=True, exist_ok=True)
+    init_agent_context_dir(agent_id)
 
 
 def init_all_agent_dirs() -> None:

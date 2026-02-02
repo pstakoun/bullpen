@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import AgentConfig
-from .memory import get_memories
+from .context import read_agent_context
 from .registry import list_agents, get_team_instructions
 
 CONTEXT_DIR = Path(".context")
@@ -15,9 +15,9 @@ def generate_prompt(agent: AgentConfig) -> str:
 
     Minimal structure - let the agent define itself through its work.
     """
-    # Get memory context (lessons the agent has accumulated)
-    memories = get_memories(agent.id)
-    memory_section = _format_memories(memories) if memories else ""
+    # Get agent's personal context (scratchpad and journal)
+    agent_context = read_agent_context(agent.id)
+    agent_context_section = f"\n{agent_context}\n" if agent_context else ""
 
     # Get team context
     team_instructions = get_team_instructions()
@@ -37,14 +37,42 @@ def generate_prompt(agent: AgentConfig) -> str:
 {agent.role}
 
 **Time:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-{team_instructions_section}{team_roster_section}{agent_instructions_section}{memory_section}
+{team_instructions_section}{team_roster_section}{agent_instructions_section}{agent_context_section}
+## Maintaining Your Context
+
+You have a personal directory at `.context/agents/{agent.id}/` for maintaining continuity across sessions.
+
+**context.md** - Your scratchpad. Keep it updated with:
+- What you're currently working on
+- Where you left off
+- Next steps and priorities
+- Open questions or blockers
+
+**journal.md** - Your running log. Append entries for:
+- Session summaries (what you did, what you learned)
+- Important decisions and reasoning
+- Things to remember long-term
+
+Before ending your session, update these files. Your future self will read them at the start of your next run.
+
+## Communication
+
+**Do not output questions or messages directly.** Use the messaging system:
+
+- **To message the user:** Write a markdown file to `.context/inbox/user/`
+- **To message a teammate:** Write a markdown file to `.context/inbox/{{their_id}}/`
+
+Your direct output is for working and thinking. All communication with the user or teammates must go through the inbox system - that's how they'll see it.
+
+When you have a question, need input, or want to share results: write it to the appropriate inbox.
+
 ## Workspace
 
 Your workspace is `.context/` - coordinate with your team there:
+- Your personal context: `.context/agents/{agent.id}/`
 - Your inbox: `.context/inbox/{agent.id}/`
 - Your outbox: `.context/outbox/{agent.id}/`
 - Shared memos: `.context/memos/`
-- Message the user: `.context/inbox/user/` (for questions, updates, or results)
 
 ## Capabilities
 
@@ -57,18 +85,6 @@ You have full access to all tools: file read/write, web search, bash commands, M
     prompt_file.write_text(prompt)
 
     return prompt
-
-
-def _format_memories(memories: list[dict]) -> str:
-    """Format memories for inclusion in prompt."""
-    if not memories:
-        return ""
-
-    lines = ["## What you've learned"]
-    for m in memories[-5:]:  # Last 5 memories
-        lines.append(f"- {m['content']}")
-
-    return "\n".join(lines) + "\n"
 
 
 def _format_team_instructions(instructions: str) -> str:
