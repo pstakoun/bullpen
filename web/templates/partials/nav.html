@@ -1,0 +1,10 @@
+<a href="/" class="px-3 py-1.5 text-sm rounded-md {% if request.url.path == '/' %}bg-ink-800 text-white{% else %}text-ink-400 hover:text-ink-200 hover:bg-ink-900{% endif %} transition-colors">Agents</a>
+<a href="/messages" class="relative px-3 py-1.5 text-sm rounded-md {% if request.url.path == '/messages' %}bg-ink-800 text-white{% else %}text-ink-400 hover:text-ink-200 hover:bg-ink-900{% endif %} transition-colors">
+    Messages
+    {% if user_inbox_count > 0 %}
+    <span class="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-medium rounded-full bg-blue-500 text-white">
+        {{ user_inbox_count }}
+    </span>
+    {% endif %}
+</a>
+<a href="/memos" class="px-3 py-1.5 text-sm rounded-md {% if request.url.path == '/memos' %}bg-ink-800 text-white{% else %}text-ink-400 hover:text-ink-200 hover:bg-ink-900{% endif %} transition-colors">Memos</a>

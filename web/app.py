@@ -18,7 +18,7 @@ from src.agents.registry import (
 )
 from src.agents.names import generate_name
 from src.agents.memory import get_memories
-from src.messaging.inbox import send_to_agent, broadcast, read_inbox, read_outbox
+from src.messaging.inbox import send_to_agent, broadcast, read_inbox, read_outbox, delete_inbox_message
 from src.messaging.memos import list_memos, read_memo
 from src.runner import (
     start_loop, stop_loop, get_loop_status, run_agent, run_cycle
@@ -43,22 +43,114 @@ LOGS_DIR = CONTEXT_DIR / "logs"
 
 
 # ============================================================================
+# Dashboard Helpers
+# ============================================================================
+
+def get_inbox_count(agent_id: str) -> int:
+    """Count unread messages in agent's inbox."""
+    inbox = CONTEXT_DIR / "inbox" / agent_id
+    return len(list(inbox.glob("*.md"))) if inbox.exists() else 0
+
+
+def get_last_log_lines(agent_id: str, lines: int = 2) -> list[str]:
+    """Get last N meaningful log lines (skip separators and metadata)."""
+    log_file = LOGS_DIR / f"{agent_id}.log"
+    if not log_file.exists():
+        return []
+    content = log_file.read_text().strip()
+    if not content:
+        return []
+    meaningful = []
+    for l in content.split("\n"):
+        l = l.strip()
+        if not l:
+            continue
+        # Skip separator lines
+        if l.startswith("===") or l.startswith("---"):
+            continue
+        # Skip iteration headers
+        if l.startswith("Iteration at"):
+            continue
+        # Clean up bullet points for display
+        if l.startswith("- "):
+            l = l[2:]
+        meaningful.append(l)
+    return meaningful[-lines:] if meaningful else []
+
+
+def get_context_snippet(agent_id: str, max_len: int = 80) -> str:
+    """Get meaningful content from agent's context.md file."""
+    ctx = CONTEXT_DIR / "agents" / agent_id / "context.md"
+    if not ctx.exists():
+        return ""
+    content = ctx.read_text().strip()
+    if not content:
+        return ""
+
+    lines = content.split("\n")
+
+    # First pass: look for Task: or Status: lines which are most useful
+    for line in lines:
+        line = line.strip()
+        if line.startswith("- Task:"):
+            return line[7:].strip()[:max_len]
+        if line.startswith("- Status:"):
+            result = line[9:].strip().strip("*")  # Remove markdown bold
+            return result[:max_len]
+
+    # Second pass: find first meaningful content line
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Skip markdown headers
+        if line.startswith("#"):
+            continue
+        # Skip lines that are just labels (end with colon)
+        if line.endswith(":"):
+            continue
+        # Skip horizontal rules
+        if line.startswith("---") or line.startswith("***"):
+            continue
+        # Skip metadata lines
+        if line.startswith("- Session:") or line.startswith("Session:"):
+            continue
+        # Strip leading bullet/dash if present
+        if line.startswith("- "):
+            line = line[2:]
+        return (line[:max_len] + "...") if len(line) > max_len else line
+
+    return ""
+
+
+def get_enriched_agents() -> list[dict]:
+    """Get all agents with dashboard metadata."""
+    return [{
+        "agent": a,
+        "inbox_count": get_inbox_count(a.id),
+        "last_logs": get_last_log_lines(a.id, 1),
+    } for a in list_agents()]
+
+
+# ============================================================================
 # HTML Pages
 # ============================================================================
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Main dashboard page."""
-    agents = list_agents()
+    enriched_agents = get_enriched_agents()
     loop_status = get_loop_status()
     memos = list_memos(limit=5)
     team_instructions = get_team_instructions()
+    user_inbox_count = get_inbox_count("user")
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "agents": agents,
+        "enriched_agents": enriched_agents,
         "loop_status": loop_status,
         "memos": memos,
         "team_instructions": team_instructions,
+        "user_inbox_count": user_inbox_count,
     })
 
 
@@ -89,6 +181,7 @@ async def agent_detail(request: Request, agent_id: str):
         "inbox": inbox,
         "outbox": outbox,
         "log_content": log_content,
+        "user_inbox_count": get_inbox_count("user"),
     })
 
 
@@ -105,6 +198,7 @@ async def messages_page(request: Request):
         "loop_status": loop_status,
         "inbox": user_inbox,
         "outbox": user_outbox,
+        "user_inbox_count": len(user_inbox),
     })
 
 
@@ -117,6 +211,7 @@ async def memos_page(request: Request):
         "request": request,
         "loop_status": loop_status,
         "memos": memos,
+        "user_inbox_count": get_inbox_count("user"),
     })
 
 
@@ -287,6 +382,14 @@ async def api_clear_user_inbox():
     return {"cleared": len(messages)}
 
 
+@app.delete("/api/messages/user/{filename:path}")
+async def api_delete_user_message(filename: str):
+    """Delete a single message from user's inbox."""
+    if delete_inbox_message("user", filename):
+        return {"deleted": filename}
+    raise HTTPException(status_code=404, detail="Message not found")
+
+
 # ============================================================================
 # API: Memos
 # ============================================================================
@@ -386,11 +489,11 @@ async def api_stream_logs(agent_id: str):
 @app.get("/partials/agent-list", response_class=HTMLResponse)
 async def partial_agent_list(request: Request):
     """Partial: agent list for htmx refresh."""
-    agents = list_agents()
+    enriched_agents = get_enriched_agents()
     loop_status = get_loop_status()
     return templates.TemplateResponse("partials/agent_list.html", {
         "request": request,
-        "agents": agents,
+        "enriched_agents": enriched_agents,
         "loop_status": loop_status,
     })
 
@@ -405,6 +508,16 @@ async def partial_status(request: Request):
     return templates.TemplateResponse("partials/status.html", {
         "request": request,
         "loop_status": loop_status,
+    })
+
+
+@app.get("/partials/nav", response_class=HTMLResponse)
+async def partial_nav(request: Request):
+    """Partial: nav links with inbox badge."""
+    user_inbox_count = get_inbox_count("user")
+    return templates.TemplateResponse("partials/nav.html", {
+        "request": request,
+        "user_inbox_count": user_inbox_count,
     })
 
 

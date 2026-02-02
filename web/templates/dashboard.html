@@ -6,7 +6,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-semibold tracking-tight">Agents</h1>
-            <p class="text-ink-500 text-sm mt-1">{{ agents|length }} agent{% if agents|length != 1 %}s{% endif %} configured</p>
+            <p class="text-ink-500 text-sm mt-1">{{ enriched_agents|length }} agent{% if enriched_agents|length != 1 %}s{% endif %} configured</p>
         </div>
         <div class="flex items-center gap-3">
             {% if loop_status.running %}
@@ -62,7 +62,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Agent List -->
         <div class="lg:col-span-2 space-y-4">
-            <div id="agent-list" hx-get="/partials/agent-list" hx-trigger="refresh-agents from:body" hx-swap="innerHTML">
+            <div id="agent-list" hx-get="/partials/agent-list" hx-trigger="refresh-agents from:body, every 5s" hx-swap="innerHTML">
                 {% include "partials/agent_list.html" %}
             </div>
 
