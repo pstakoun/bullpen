@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.agents.context import get_agent_context_dir
 from src.agents.registry import (
     list_agents,
     get_agent,
@@ -238,6 +239,46 @@ def cmd_logs(args):
     print()
 
 
+def cmd_context(args):
+    if not args:
+        print("Usage: context <name> [file]")
+        print("Files: context, journal, conversations (default: context)")
+        return
+    agent = resolve_agent(args[0])
+    if not agent:
+        print(f"Not found: {args[0]}")
+        return
+
+    ctx_dir = get_agent_context_dir(agent.id)
+    file_name = args[1] if len(args) > 1 else "context"
+
+    # Map short names to files
+    file_map = {
+        "context": "context.md",
+        "journal": "journal.md",
+        "conversations": "conversations.md",
+    }
+
+    if file_name not in file_map:
+        print(f"Unknown file: {file_name}")
+        print("Files: context, journal, conversations")
+        return
+
+    file_path = ctx_dir / file_map[file_name]
+    if not file_path.exists():
+        print(f"\n{agent.name}'s {file_name} is empty.\n")
+        return
+
+    content = file_path.read_text().strip()
+    if not content:
+        print(f"\n{agent.name}'s {file_name} is empty.\n")
+        return
+
+    print(f"\n--- {agent.name}'s {file_name} ---\n")
+    print(content)
+    print()
+
+
 def cmd_start(args):
     if start_loop():
         print("Started loop")
@@ -339,6 +380,7 @@ Commands:
 
   inbox <name>            - View agent's inbox
   outbox <name>           - View agent's outbox
+  context <name> [file]   - View agent's context/journal/conversations
   logs <name> [lines]     - View agent logs
   memos                   - List shared memos
   read <file>             - Read a memo
@@ -407,6 +449,8 @@ def run_command(cmd: str, args: list[str]) -> bool:
         cmd_read(args)
     elif cmd == "logs":
         cmd_logs(args)
+    elif cmd == "context":
+        cmd_context(args)
     elif cmd == "inbox":
         cmd_inbox(args)
     elif cmd == "outbox":

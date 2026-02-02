@@ -64,6 +64,31 @@ def read_inbox(agent_id: str, clear: bool = False) -> list[dict]:
     return messages
 
 
+def archive_inbox(agent_id: str) -> int:
+    """
+    Archive inbox messages to agent's conversation history before clearing.
+
+    Returns the number of messages archived.
+    """
+    inbox = INBOX_DIR / agent_id
+    if not inbox.exists():
+        return 0
+
+    # Archive to agent's personal context directory
+    conversations_file = CONTEXT_DIR / "agents" / agent_id / "conversations.md"
+    conversations_file.parent.mkdir(parents=True, exist_ok=True)
+
+    archived = 0
+    for msg_file in sorted(inbox.glob("*.md")):
+        content = msg_file.read_text()
+        # Append to conversations file
+        with open(conversations_file, "a") as f:
+            f.write(f"\n---\n\n{content}\n")
+        archived += 1
+
+    return archived
+
+
 def write_to_outbox(agent_id: str, content: str, title: str = "response") -> Path:
     """Write a response to an agent's outbox."""
     outbox = OUTBOX_DIR / agent_id

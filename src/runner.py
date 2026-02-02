@@ -6,9 +6,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from src.agents.context import rotate_conversations, rotate_journal
 from src.agents.registry import get_agent, list_agents, init_all_agent_dirs
 from src.agents.prompts import generate_prompt
-from src.messaging.inbox import read_inbox
+from src.messaging.inbox import archive_inbox, read_inbox
 
 CONTEXT_DIR = Path(".context")
 LOGS_DIR = CONTEXT_DIR / "logs"
@@ -29,8 +30,15 @@ def run_agent(agent_id: str, task: Optional[str] = None) -> dict:
     if agent.status != "active":
         return {"error": f"Agent {agent_id} is {agent.status}"}
 
+    # Rotate journal and conversations if they're getting too long
+    rotate_journal(agent_id, keep_lines=100)
+    rotate_conversations(agent_id, keep_lines=200)
+
     # Generate fresh prompt
     prompt = generate_prompt(agent)
+
+    # Archive inbox messages before clearing (preserve conversation history)
+    archive_inbox(agent_id)
 
     # Check inbox
     inbox_messages = read_inbox(agent_id, clear=True)
